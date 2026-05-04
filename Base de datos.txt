@@ -1,0 +1,171 @@
+-- =========================================
+-- CREAR BASE DE DATOS
+-- =========================================
+CREATE DATABASE IncidenteFlowFinal;
+
+-- Conectarse a la base
+-- (en pgAdmin o psql)
+-- \c IncidenteFlowFinal;
+
+
+-- =========================================
+-- TABLA: Usuarios
+-- =========================================
+CREATE TABLE usuarios (
+    usuario_id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- =========================================
+-- TABLA: Credenciales (1 a 1)
+-- =========================================
+CREATE TABLE credenciales (
+    usuario_id INT PRIMARY KEY,
+    password_hash VARCHAR(255) NOT NULL,
+    mfa_secret VARCHAR(255),
+    ultimo_login TIMESTAMP,
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(usuario_id)
+        ON DELETE CASCADE
+);
+
+
+-- =========================================
+-- TABLA: Roles
+-- =========================================
+CREATE TABLE roles (
+    rol_id SERIAL PRIMARY KEY,
+    nombre_rol VARCHAR(50) NOT NULL UNIQUE,
+    descripcion VARCHAR(255)
+);
+
+
+-- =========================================
+-- TABLA: UsuarioRoles (N:M)
+-- =========================================
+CREATE TABLE usuario_roles (
+    usuario_id INT,
+    rol_id INT,
+    fecha_asignacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (usuario_id, rol_id),
+
+    FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(usuario_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (rol_id)
+        REFERENCES roles(rol_id)
+        ON DELETE CASCADE
+);
+
+
+-- =========================================
+-- TABLA: Categorias
+-- =========================================
+CREATE TABLE categorias (
+    categoria_id SERIAL PRIMARY KEY,
+    nombre_categoria VARCHAR(100) NOT NULL UNIQUE,
+    descripcion VARCHAR(255)
+);
+
+
+-- =========================================
+-- TABLA: Incidentes
+-- =========================================
+CREATE TABLE incidentes (
+    incidente_id SERIAL PRIMARY KEY,
+    titulo VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(500) NOT NULL,
+    prioridad VARCHAR(20) NOT NULL,
+    estado_actual VARCHAR(30) NOT NULL DEFAULT 'ABIERTO',
+    usuario_reporta_id INT NOT NULL,
+    categoria_id INT NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_reporta_id)
+        REFERENCES usuarios(usuario_id),
+
+    FOREIGN KEY (categoria_id)
+        REFERENCES categorias(categoria_id),
+
+    CHECK (prioridad IN ('BAJA', 'MEDIA', 'ALTA')),
+    CHECK (estado_actual IN ('ABIERTO', 'EN_PROCESO', 'CERRADO', 'CANCELADO'))
+);
+
+
+-- =========================================
+-- TABLA: HistorialEstados
+-- =========================================
+CREATE TABLE historial_estados (
+    historial_id SERIAL PRIMARY KEY,
+    incidente_id INT NOT NULL,
+    estado_anterior VARCHAR(30),
+    estado_nuevo VARCHAR(30) NOT NULL,
+    fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    comentario VARCHAR(500),
+    responsable_id INT NOT NULL,
+
+    FOREIGN KEY (incidente_id)
+        REFERENCES incidentes(incidente_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (responsable_id)
+        REFERENCES usuarios(usuario_id),
+
+    CHECK (estado_anterior IS NULL OR estado_anterior IN ('ABIERTO', 'EN_PROCESO', 'CERRADO', 'CANCELADO')),
+    CHECK (estado_nuevo IN ('ABIERTO', 'EN_PROCESO', 'CERRADO', 'CANCELADO'))
+);
+
+
+-- =========================================
+-- DATOS INICIALES (MUY IMPORTANTE PARA DEMO)
+-- =========================================
+
+-- Roles
+INSERT INTO roles (nombre_rol, descripcion) VALUES
+('ADMIN', 'Administrador del sistema'),
+('TECNICO', 'Encargado de resolver incidentes'),
+('USUARIO', 'Usuario que reporta incidentes');
+
+-- Categorías
+INSERT INTO categorias (nombre_categoria, descripcion) VALUES
+('Hardware', 'Problemas físicos'),
+('Software', 'Problemas de aplicaciones'),
+('Red', 'Problemas de red'),
+('Acceso', 'Problemas de login');
+
+-- Usuarios
+INSERT INTO usuarios (nombre, email) VALUES
+('Admin General', 'admin@flow.com'),
+('Tecnico 1', 'tec@flow.com'),
+('Usuario Demo', 'user@flow.com');
+
+-- Credenciales
+INSERT INTO credenciales (usuario_id, password_hash) VALUES
+(1, 'admin123'),
+(2, 'tec123'),
+(3, 'user123');
+
+-- Roles asignados
+INSERT INTO usuario_roles (usuario_id, rol_id) VALUES
+(1, 1),
+(2, 2),
+(3, 3);
+
+-- Incidentes
+INSERT INTO incidentes (titulo, descripcion, prioridad, estado_actual, usuario_reporta_id, categoria_id)
+VALUES
+('PC no enciende', 'El equipo no responde al encender', 'ALTA', 'ABIERTO', 3, 1),
+('Error en sistema', 'Falla al iniciar sesión', 'MEDIA', 'EN_PROCESO', 3, 2);
+
+-- Historial
+INSERT INTO historial_estados (incidente_id, estado_anterior, estado_nuevo, comentario, responsable_id)
+VALUES
+(1, NULL, 'ABIERTO', 'Creado por usuario', 3),
+(2, 'ABIERTO', 'EN_PROCESO', 'Tomado por técnico', 2);
