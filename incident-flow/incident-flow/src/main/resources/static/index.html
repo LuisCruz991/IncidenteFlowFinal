@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IncidentFlow - Sistema de Gestión</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 25px;
+      margin-top: 20px;
+    }
+    .dashboard-card {
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border-radius: 20px;
+      padding: 30px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .dashboard-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    .dashboard-card .icon {
+      font-size: 4em;
+      margin-bottom: 15px;
+    }
+    .dashboard-card h3 {
+      font-size: 1.8em;
+      margin-bottom: 10px;
+    }
+    .dashboard-card p {
+      color: #666;
+      font-size: 0.9em;
+    }
+    .card-users .icon { color: #17a2b8; }
+    .card-incidents .icon { color: #28a745; }
+    .card-categories .icon { color: #ffc107; }
+    .card-roles .icon { color: #6c757d; }
+    .card-history .icon { color: #1e3c72; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>🚀 IncidentFlow</h1>
+      <p style="margin-top: 5px;">Sistema de Gestión de Incidentes</p>
+    </div>
+    <div>
+      <span class="badge badge-ACTIVO">🟢 Sistema Activo</span>
+      <span class="badge badge-info" style="background:#1e3c72;">PostgreSQL</span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="dashboard-grid">
+      <div class="dashboard-card card-users" onclick="location.href='usuarios.html'">
+        <div class="icon">👥</div>
+        <h3>Usuarios</h3>
+        <p>Gestionar usuarios del sistema</p>
+      </div>
+      <div class="dashboard-card card-incidents" onclick="location.href='incidentes.html'">
+        <div class="icon">📋</div>
+        <h3>Incidentes</h3>
+        <p>Crear y gestionar tickets</p>
+      </div>
+      <div class="dashboard-card card-categories" onclick="location.href='categorias.html'">
+        <div class="icon">🏷️</div>
+        <h3>Categorías</h3>
+        <p>Clasificar incidentes</p>
+      </div>
+      <div class="dashboard-card card-roles" onclick="location.href='roles.html'">
+        <div class="icon">⚙️</div>
+        <h3>Roles</h3>
+        <p>Administrar perfiles</p>
+      </div>
+      <div class="dashboard-card card-history" onclick="location.href='historial.html'">
+        <div class="icon">📜</div>
+        <h3>Historial</h3>
+        <p>Trazabilidad de cambios</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <p>IncidentFlow v1.0 | Spring Boot 3.5.10 | PostgreSQL</p>
+    <p style="font-size: 0.8em;">© 2025 - Sistema de Gestión de Incidentes</p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentFlow - Roles</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚙️ Gestión de Roles</h1>
+        <button class="btn btn-primary" onclick="abrirModalCrear()">+ Nuevo Rol</button>
+    </div>
+    <div class="content">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading">Cargando roles...</div>
+        <div id="tableContainer" class="table-container"></div>
+    </div>
+    <div class="footer">
+        <p>IncidentFlow - Gestión de Roles | PostgreSQL</p>
+    </div>
+</div>
+
+<!-- Modal Crear/Editar Rol -->
+<div id="modalRol" class="modal">
+    <div class="modal-content">
+        <h2 id="modalTitle">➕ Nuevo Rol</h2>
+        <input type="hidden" id="rolId">
+        <div class="form-group">
+            <label>Nombre del Rol:</label>
+            <input type="text" id="nombre_rol" placeholder="Ej: ADMIN, TECNICO, USUARIO" required>
+        </div>
+        <div class="form-group">
+            <label>Descripción:</label>
+            <textarea id="descripcion" rows="3" placeholder="Descripción del rol..."></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="guardarRol()">💾 Guardar</button>
+            <button class="btn btn-danger" onclick="cerrarModal()">❌ Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api/roles';
+
+    function mostrarAlerta(mensaje, tipo) {
+        const alertDiv = document.getElementById('alert');
+        alertDiv.className = `alert alert-${tipo}`;
+        alertDiv.innerText = mensaje;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 4000);
+    }
+
+    function mostrarLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    async function cargarRoles() {
+        mostrarLoading(true);
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Error al cargar roles');
+            const roles = await response.json();
+
+            if (roles.length === 0) {
+                document.getElementById('tableContainer').innerHTML = '<div class="empty-message">📭 No hay roles registrados</div>';
+                mostrarLoading(false);
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const r of roles) {
+                html += `
+                    <tr>
+                        <td><strong>${r.rol_id}</strong></td>
+                        <td>${r.nombre_rol}</td>
+                        <td>${r.descripcion || '-'}</td>
+                        <td>
+                            <button class="btn btn-warning" style="padding: 5px 10px;" onclick="editarRol(${r.rol_id})">✏️ Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="eliminarRol(${r.rol_id})">🗑️ Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('tableContainer').innerHTML = html;
+        } catch (error) {
+            mostrarAlerta('Error al cargar roles: ' + error.message, 'error');
+            document.getElementById('tableContainer').innerHTML = '<div class="empty-message">❌ Error de conexión</div>';
+        }
+        mostrarLoading(false);
+    }
+
+    async function guardarRol() {
+        const id = document.getElementById('rolId').value;
+        const rol = {
+            nombre_rol: document.getElementById('nombre_rol').value,
+            descripcion: document.getElementById('descripcion').value
+        };
+
+        if (!rol.nombre_rol) {
+            mostrarAlerta('❌ El nombre del rol es obligatorio', 'error');
+            return;
+        }
+
+        try {
+            let response;
+            if (id) {
+                response = await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rol)
+                });
+            } else {
+                response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rol)
+                });
+            }
+
+            if (response.ok) {
+                mostrarAlerta(id ? '✅ Rol actualizado' : '✅ Rol creado', 'success');
+                cerrarModal();
+                cargarRoles();
+            } else {
+                mostrarAlerta('❌ Error al guardar', 'error');
+            }
+        } catch (error) {
+            mostrarAlerta('❌ Error de conexión', 'error');
+        }
+    }
+
+    async function editarRol(id) {
+        try {
+            const response = await fetch(`${API_URL}/${id}`);
+            const rol = await response.json();
+            document.getElementById('modalTitle').innerText = '✏️ Editar Rol';
+            document.getElementById('rolId').value = rol.rol_id;
+            document.getElementById('nombre_rol').value = rol.nombre_rol;
+            document.getElementById('descripcion').value = rol.descripcion || '';
+            document.getElementById('modalRol').style.display = 'flex';
+        } catch (error) {
+            mostrarAlerta('Error al cargar rol', 'error');
+        }
+    }
+
+    async function eliminarRol(id) {
+        if (confirm('¿Eliminar este rol?')) {
+            const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                mostrarAlerta('✅ Rol eliminado', 'success');
+                cargarRoles();
+            }
+        }
+    }
+
+    function abrirModalCrear() {
+        document.getElementById('modalTitle').innerText = '➕ Nuevo Rol';
+        document.getElementById('rolId').value = '';
+        document.getElementById('nombre_rol').value = '';
+        document.getElementById('descripcion').value = '';
+        document.getElementById('modalRol').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalRol').style.display = 'none';
+    }
+
+    cargarRoles();
+</script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentFlow - Usuarios</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>👥 Gestión de Usuarios</h1>
+        <button class="btn btn-primary" onclick="abrirModalCrear()">+ Nuevo Usuario</button>
+    </div>
+    <div class="content">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading">Cargando usuarios...</div>
+        <div id="tableContainer" class="table-container"></div>
+    </div>
+    <div class="footer">
+        <p>IncidentFlow - Gestión de Usuarios | PostgreSQL</p>
+    </div>
+</div>
+
+<!-- Modal Crear/Editar Usuario -->
+<div id="modalUsuario" class="modal">
+    <div class="modal-content">
+        <h2 id="modalTitle">➕ Nuevo Usuario</h2>
+        <input type="hidden" id="usuarioId">
+        <div class="form-group">
+            <label>Nombre completo:</label>
+            <input type="text" id="nombre" placeholder="Ej: Juan Pérez" required>
+        </div>
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" id="email" placeholder="correo@empresa.com" required>
+        </div>
+        <div class="form-group">
+            <label>Contraseña:</label>
+            <input type="password" id="password" placeholder="******">
+            <small style="color: #666;">Dejar vacío si no se desea cambiar</small>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="guardarUsuario()">💾 Guardar</button>
+            <button class="btn btn-danger" onclick="cerrarModal()">❌ Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api';
+
+    function mostrarAlerta(mensaje, tipo) {
+        const alertDiv = document.getElementById('alert');
+        alertDiv.className = `alert alert-${tipo}`;
+        alertDiv.innerText = mensaje;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 4000);
+    }
+
+    function mostrarLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    async function cargarUsuarios() {
+        mostrarLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/usuarios`);
+            if (!response.ok) throw new Error('Error al cargar usuarios');
+            const usuarios = await response.json();
+
+            if (usuarios.length === 0) {
+                document.getElementById('tableContainer').innerHTML = '<div class="empty-message">📭 No hay usuarios registrados</div>';
+                mostrarLoading(false);
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Activo</th>
+                            <th>Fecha Registro</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const u of usuarios) {
+                const activoClass = u.activo ? 'badge-ACTIVO' : 'badge-INACTIVO';
+                const activoText = u.activo ? '✅ Activo' : '❌ Inactivo';
+                const fecha = u.fecha_creacion ? new Date(u.fecha_creacion).toLocaleDateString('es-ES') : '-';
+
+                html += `
+                    <tr>
+                        <td><strong>${u.usuario_id}</strong></td>
+                        <td>${u.nombre}</td>
+                        <td>${u.email}</td>
+                        <td><span class="badge ${activoClass}">${activoText}</span></td>
+                        <td>${fecha}</td>
+                        <td>
+                            <button class="btn btn-warning" style="padding: 5px 10px;" onclick="editarUsuario(${u.usuario_id})">✏️ Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="eliminarUsuario(${u.usuario_id})">🗑️ Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('tableContainer').innerHTML = html;
+        } catch (error) {
+            mostrarAlerta('Error al cargar usuarios: ' + error.message, 'error');
+            document.getElementById('tableContainer').innerHTML = '<div class="empty-message">❌ Error de conexión con el servidor</div>';
+        }
+        mostrarLoading(false);
+    }
+
+    async function guardarUsuario() {
+        const id = document.getElementById('usuarioId').value;
+        const usuario = {
+            nombre: document.getElementById('nombre').value,
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        };
+
+        if (!usuario.nombre || !usuario.email) {
+            mostrarAlerta('❌ Nombre y email son obligatorios', 'error');
+            return;
+        }
+
+        try {
+            let response;
+            if (id) {
+                response = await fetch(`${API_URL}/usuarios/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(usuario)
+                });
+            } else {
+                response = await fetch(`${API_URL}/usuarios`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(usuario)
+                });
+            }
+
+            if (response.ok) {
+                mostrarAlerta(id ? '✅ Usuario actualizado' : '✅ Usuario creado', 'success');
+                cerrarModal();
+                cargarUsuarios();
+            } else {
+                const error = await response.text();
+                mostrarAlerta('❌ Error: ' + error, 'error');
+            }
+        } catch (error) {
+            mostrarAlerta('❌ Error de conexión', 'error');
+        }
+    }
+
+    async function editarUsuario(id) {
+        try {
+            const response = await fetch(`${API_URL}/usuarios/${id}`);
+            const usuario = await response.json();
+            document.getElementById('modalTitle').innerText = '✏️ Editar Usuario';
+            document.getElementById('usuarioId').value = usuario.usuario_id;
+            document.getElementById('nombre').value = usuario.nombre;
+            document.getElementById('email').value = usuario.email;
+            document.getElementById('password').value = '';
+            document.getElementById('modalUsuario').style.display = 'flex';
+        } catch (error) {
+            mostrarAlerta('Error al cargar usuario', 'error');
+        }
+    }
+
+    async function eliminarUsuario(id) {
+        if (confirm('¿Está seguro de eliminar este usuario?')) {
+            const response = await fetch(`${API_URL}/usuarios/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                mostrarAlerta('✅ Usuario eliminado', 'success');
+                cargarUsuarios();
+            } else {
+                mostrarAlerta('❌ Error al eliminar', 'error');
+            }
+        }
+    }
+
+    function abrirModalCrear() {
+        document.getElementById('modalTitle').innerText = '➕ Nuevo Usuario';
+        document.getElementById('usuarioId').value = '';
+        document.getElementById('nombre').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('modalUsuario').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalUsuario').style.display = 'none';
+    }
+
+    cargarUsuarios();
+</script>
+</body>
+</html>

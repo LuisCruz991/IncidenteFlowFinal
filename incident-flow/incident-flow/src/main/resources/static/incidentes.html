@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IncidentFlow - Incidentes</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📋 Gestión de Incidentes</h1>
+    <button class="btn btn-primary" onclick="abrirModalCrear()">+ Nuevo Incidente</button>
+  </div>
+  <div class="content">
+    <div id="alert" class="alert"></div>
+    <div id="loading" class="loading">Cargando incidentes...</div>
+    <div id="tableContainer" class="table-container"></div>
+  </div>
+  <div class="footer">
+    <p>IncidentFlow - Gestión de Incidentes | PostgreSQL</p>
+  </div>
+</div>
+
+<!-- Modal Crear Incidente -->
+<div id="modalIncidente" class="modal">
+  <div class="modal-content">
+    <h2>📝 Nuevo Incidente</h2>
+    <div class="form-group">
+      <label>Título:</label>
+      <input type="text" id="titulo" placeholder="Ej: PC no enciende" required>
+    </div>
+    <div class="form-group">
+      <label>Descripción:</label>
+      <textarea id="descripcion" rows="3" placeholder="Describa el problema..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Prioridad:</label>
+      <select id="prioridad">
+        <option value="BAJA">🟢 Baja</option>
+        <option value="MEDIA" selected>🟡 Media</option>
+        <option value="ALTA">🔴 Alta</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Usuario que reporta (ID):</label>
+      <input type="number" id="usuario_reporta_id" placeholder="Ej: 1, 2, 3..." required>
+      <small style="color: #666;">Ver ID en la tabla de Usuarios</small>
+    </div>
+    <div class="form-group">
+      <label>Categoría (ID):</label>
+      <input type="number" id="categoria_id" placeholder="Ej: 1=Hardware, 2=Software..." required>
+      <small style="color: #666;">Ver ID en la tabla de Categorías</small>
+    </div>
+    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="crearIncidente()">💾 Guardar</button>
+      <button class="btn btn-danger" onclick="cerrarModal()">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_URL = 'http://localhost:8080/api';
+
+  function mostrarAlerta(mensaje, tipo) {
+    const alertDiv = document.getElementById('alert');
+    alertDiv.className = `alert alert-${tipo}`;
+    alertDiv.innerText = mensaje;
+    alertDiv.style.display = 'block';
+    setTimeout(() => alertDiv.style.display = 'none', 4000);
+  }
+
+  function mostrarLoading(show) {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+  }
+
+  async function cargarIncidentes() {
+    mostrarLoading(true);
+    try {
+      const [incidentesRes, usuariosRes, categoriasRes] = await Promise.all([
+        fetch(`${API_URL}/incidentes`),
+        fetch(`${API_URL}/usuarios`),
+        fetch(`${API_URL}/categorias`)
+      ]);
+
+      const incidentes = await incidentesRes.json();
+      const usuarios = usuariosRes.ok ? await usuariosRes.json() : [];
+      const categorias = categoriasRes.ok ? await categoriasRes.json() : [];
+
+      if (incidentes.length === 0) {
+        document.getElementById('tableContainer').innerHTML = '<div class="empty-message">📭 No hay incidentes registrados</div>';
+        mostrarLoading(false);
+        return;
+      }
+
+      let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Descripción</th>
+                            <th>Prioridad</th>
+                            <th>Estado</th>
+                            <th>Usuario</th>
+                            <th>Categoría</th>
+                            <th>Fecha</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+      for (const i of incidentes) {
+        const usuario = usuarios.find(u => u.usuario_id === i.usuario_reporta_id);
+        const categoria = categorias.find(c => c.categoria_id === i.categoria_id);
+        const nombreUsuario = usuario ? usuario.nombre : `ID: ${i.usuario_reporta_id}`;
+        const nombreCategoria = categoria ? categoria.nombre_categoria : `ID: ${i.categoria_id}`;
+        const fecha = i.fecha_creacion ? new Date(i.fecha_creacion).toLocaleDateString('es-ES') : '-';
+        const descripcion = i.descripcion ? (i.descripcion.length > 60 ? i.descripcion.substring(0, 60) + '...' : i.descripcion) : '-';
+
+        html += `
+                    <tr>
+                        <td><strong>${i.incidente_id}</strong></td>
+                        <td>${i.titulo}</td>
+                        <td><small>${descripcion}</small></td>
+                        <td><span class="badge badge-${i.prioridad}">${i.prioridad}</span></td>
+                        <td><span class="badge badge-${i.estado_actual}">${i.estado_actual}</span></td>
+                        <td>${nombreUsuario}</td>
+                        <td>${nombreCategoria}</td>
+                        <td>${fecha}</td>
+                        <td>
+                            <button class="btn btn-info" style="padding: 5px 10px;" onclick="cambiarEstado(${i.incidente_id}, 'EN_PROCESO')">🔄 Proceso</button>
+                            <button class="btn btn-success" style="padding: 5px 10px;" onclick="cambiarEstado(${i.incidente_id}, 'CERRADO')">✅ Cerrar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="eliminarIncidente(${i.incidente_id})">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+      }
+
+      html += `</tbody></table>`;
+      document.getElementById('tableContainer').innerHTML = html;
+    } catch (error) {
+      mostrarAlerta('Error al cargar incidentes: ' + error.message, 'error');
+      document.getElementById('tableContainer').innerHTML = '<div class="empty-message">❌ Error de conexión</div>';
+    }
+    mostrarLoading(false);
+  }
+
+  async function crearIncidente() {
+    const incidente = {
+      titulo: document.getElementById('titulo').value,
+      descripcion: document.getElementById('descripcion').value,
+      prioridad: document.getElementById('prioridad').value,
+      usuario_reporta_id: parseInt(document.getElementById('usuario_reporta_id').value),
+      categoria_id: parseInt(document.getElementById('categoria_id').value)
+    };
+
+    if (!incidente.titulo || !incidente.usuario_reporta_id || !incidente.categoria_id) {
+      mostrarAlerta('❌ Título, usuario y categoría son obligatorios', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/incidentes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(incidente)
+      });
+
+      if (response.ok) {
+        mostrarAlerta('✅ Incidente creado correctamente', 'success');
+        cerrarModal();
+        cargarIncidentes();
+        limpiarFormulario();
+      } else {
+        const error = await response.text();
+        mostrarAlerta('❌ Error: ' + error, 'error');
+      }
+    } catch (error) {
+      mostrarAlerta('❌ Error de conexión', 'error');
+    }
+  }
+
+  async function cambiarEstado(id, nuevoEstado) {
+    try {
+      const response = await fetch(`${API_URL}/incidentes/${id}/estado?estado=${nuevoEstado}`, {
+        method: 'PATCH'
+      });
+      if (response.ok) {
+        mostrarAlerta(`✅ Estado cambiado a ${nuevoEstado}`, 'success');
+        cargarIncidentes();
+      }
+    } catch (error) {
+      mostrarAlerta('❌ Error al cambiar estado', 'error');
+    }
+  }
+
+  async function eliminarIncidente(id) {
+    if (confirm('¿Eliminar este incidente?')) {
+      const response = await fetch(`${API_URL}/incidentes/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        mostrarAlerta('✅ Incidente eliminado', 'success');
+        cargarIncidentes();
+      }
+    }
+  }
+
+  function abrirModalCrear() {
+    document.getElementById('titulo').value = '';
+    document.getElementById('descripcion').value = '';
+    document.getElementById('prioridad').value = 'MEDIA';
+    document.getElementById('usuario_reporta_id').value = '';
+    document.getElementById('categoria_id').value = '';
+    document.getElementById('modalIncidente').style.display = 'flex';
+  }
+
+  function cerrarModal() {
+    document.getElementById('modalIncidente').style.display = 'none';
+  }
+
+  function limpiarFormulario() {
+    document.getElementById('titulo').value = '';
+    document.getElementById('descripcion').value = '';
+    document.getElementById('prioridad').value = 'MEDIA';
+    document.getElementById('usuario_reporta_id').value = '';
+    document.getElementById('categoria_id').value = '';
+  }
+
+  cargarIncidentes();
+</script>
+</body>
+</html>

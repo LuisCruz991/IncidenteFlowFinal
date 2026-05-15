@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentFlow - Historial</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📜 Historial de Cambios</h1>
+        <button class="btn btn-primary" onclick="cargarHistorial()">🔄 Actualizar</button>
+    </div>
+    <div class="content">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading">Cargando historial...</div>
+        <div id="tableContainer" class="table-container"></div>
+    </div>
+    <div class="footer">
+        <p>IncidentFlow - Trazabilidad de Incidentes | PostgreSQL</p>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api/historial';
+
+    function mostrarAlerta(mensaje, tipo) {
+        const alertDiv = document.getElementById('alert');
+        alertDiv.className = `alert alert-${tipo}`;
+        alertDiv.innerText = mensaje;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 4000);
+    }
+
+    function mostrarLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    async function cargarHistorial() {
+        mostrarLoading(true);
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Error al cargar historial');
+            const historial = await response.json();
+
+            if (historial.length === 0) {
+                document.getElementById('tableContainer').innerHTML = '<div class="empty-message">📭 No hay registros de cambios aún</div>';
+                mostrarLoading(false);
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Incidente #</th>
+                            <th>Estado Anterior</th>
+                            <th>Estado Nuevo</th>
+                            <th>Fecha Cambio</th>
+                            <th>Responsable ID</th>
+                            <th>Comentario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const h of historial) {
+                const fecha = h.fecha_cambio ? new Date(h.fecha_cambio).toLocaleString('es-ES') : '-';
+                const estadoAnterior = h.estado_anterior || '-';
+                const estadoNuevo = h.estado_nuevo || '-';
+
+                html += `
+                    <tr>
+                        <td><strong>${h.historial_id}</strong></td>
+                        <td>#${h.incidente_id}</td>
+                        <td>${estadoAnterior}</td>
+                        <td><span class="badge badge-${estadoNuevo.replace(' ', '_')}">${estadoNuevo}</span></td>
+                        <td>${fecha}</td>
+                        <td>${h.responsable_id || '-'}</td>
+                        <td>${h.comentario || '-'}</td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('tableContainer').innerHTML = html;
+        } catch (error) {
+            mostrarAlerta('Error al cargar historial: ' + error.message, 'error');
+            document.getElementById('tableContainer').innerHTML = '<div class="empty-message">❌ Error de conexión</div>';
+        }
+        mostrarLoading(false);
+    }
+
+    cargarHistorial();
+</script>
+</body>
+</html>

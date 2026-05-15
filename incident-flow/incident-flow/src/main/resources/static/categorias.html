@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentFlow - Categorías</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🏷️ Gestión de Categorías</h1>
+        <button class="btn btn-primary" onclick="abrirModalCrear()">+ Nueva Categoría</button>
+    </div>
+    <div class="content">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading">Cargando categorías...</div>
+        <div id="tableContainer" class="table-container"></div>
+    </div>
+    <div class="footer">
+        <p>IncidentFlow - Gestión de Categorías | PostgreSQL</p>
+    </div>
+</div>
+
+<!-- Modal Crear/Editar Categoría -->
+<div id="modalCategoria" class="modal">
+    <div class="modal-content">
+        <h2 id="modalTitle">➕ Nueva Categoría</h2>
+        <input type="hidden" id="categoriaId">
+        <div class="form-group">
+            <label>Nombre:</label>
+            <input type="text" id="nombre_categoria" placeholder="Ej: Hardware, Software..." required>
+        </div>
+        <div class="form-group">
+            <label>Descripción:</label>
+            <textarea id="descripcion" rows="3" placeholder="Descripción de la categoría..."></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="guardarCategoria()">💾 Guardar</button>
+            <button class="btn btn-danger" onclick="cerrarModal()">❌ Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api/categorias';
+
+    function mostrarAlerta(mensaje, tipo) {
+        const alertDiv = document.getElementById('alert');
+        alertDiv.className = `alert alert-${tipo}`;
+        alertDiv.innerText = mensaje;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 4000);
+    }
+
+    function mostrarLoading(show) {
+        document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    async function cargarCategorias() {
+        mostrarLoading(true);
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Error al cargar categorías');
+            const categorias = await response.json();
+
+            if (categorias.length === 0) {
+                document.getElementById('tableContainer').innerHTML = '<div class="empty-message">📭 No hay categorías registradas</div>';
+                mostrarLoading(false);
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const c of categorias) {
+                html += `
+                    <tr>
+                        <td><strong>${c.categoria_id}</strong></td>
+                        <td>${c.nombre_categoria}</td>
+                        <td>${c.descripcion || '-'}</td>
+                        <td>
+                            <button class="btn btn-warning" style="padding: 5px 10px;" onclick="editarCategoria(${c.categoria_id})">✏️ Editar</button>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="eliminarCategoria(${c.categoria_id})">🗑️ Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('tableContainer').innerHTML = html;
+        } catch (error) {
+            mostrarAlerta('Error al cargar categorías: ' + error.message, 'error');
+            document.getElementById('tableContainer').innerHTML = '<div class="empty-message">❌ Error de conexión</div>';
+        }
+        mostrarLoading(false);
+    }
+
+    async function guardarCategoria() {
+        const id = document.getElementById('categoriaId').value;
+        const categoria = {
+            nombre_categoria: document.getElementById('nombre_categoria').value,
+            descripcion: document.getElementById('descripcion').value
+        };
+
+        if (!categoria.nombre_categoria) {
+            mostrarAlerta('❌ El nombre es obligatorio', 'error');
+            return;
+        }
+
+        try {
+            let response;
+            if (id) {
+                response = await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(categoria)
+                });
+            } else {
+                response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(categoria)
+                });
+            }
+
+            if (response.ok) {
+                mostrarAlerta(id ? '✅ Categoría actualizada' : '✅ Categoría creada', 'success');
+                cerrarModal();
+                cargarCategorias();
+            } else {
+                mostrarAlerta('❌ Error al guardar', 'error');
+            }
+        } catch (error) {
+            mostrarAlerta('❌ Error de conexión', 'error');
+        }
+    }
+
+    async function editarCategoria(id) {
+        try {
+            const response = await fetch(`${API_URL}/${id}`);
+            const categoria = await response.json();
+            document.getElementById('modalTitle').innerText = '✏️ Editar Categoría';
+            document.getElementById('categoriaId').value = categoria.categoria_id;
+            document.getElementById('nombre_categoria').value = categoria.nombre_categoria;
+            document.getElementById('descripcion').value = categoria.descripcion || '';
+            document.getElementById('modalCategoria').style.display = 'flex';
+        } catch (error) {
+            mostrarAlerta('Error al cargar categoría', 'error');
+        }
+    }
+
+    async function eliminarCategoria(id) {
+        if (confirm('¿Eliminar esta categoría?')) {
+            const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                mostrarAlerta('✅ Categoría eliminada', 'success');
+                cargarCategorias();
+            }
+        }
+    }
+
+    function abrirModalCrear() {
+        document.getElementById('modalTitle').innerText = '➕ Nueva Categoría';
+        document.getElementById('categoriaId').value = '';
+        document.getElementById('nombre_categoria').value = '';
+        document.getElementById('descripcion').value = '';
+        document.getElementById('modalCategoria').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalCategoria').style.display = 'none';
+    }
+
+    cargarCategorias();
+</script>
+</body>
+</html>
